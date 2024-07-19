@@ -8,7 +8,7 @@ test_that("quarto_ext handles `extension info`", {
   }))
   info <- jsonlite::parse_json(txt)
   expect_equal(info$version, as.character(utils::packageVersion("shinylive")))
-  expect_equal(info$assets_version, SHINYLIVE_ASSETS_VERSION)
+  expect_equal(info$assets_version, assets_version())
 
   expect_true(
     is.list(info$scripts) &&
@@ -63,9 +63,49 @@ test_that("quarto_ext handles `extension app-resources`", {
 
   assets_ensure()
 
+  # Clean-up on exit
+  tmpdir <- tempdir()
+  wd <- setwd(tmpdir)
+  on.exit({
+    setwd(wd)
+    fs::dir_delete(tmpdir)
+  })
+
+  app_json <- '[{"name":"app.R","type":"text","content":"library(shiny)"}]'
+  writeLines(app_json, "app.json")
+
   txt <- collapse(capture.output({
-    quarto_ext(c("extension", "app-resources"))
+    quarto_ext(c("extension", "app-resources"), con = "app.json")
   }))
-  obj <- jsonlite::parse_json(txt)
-  expect_equal(obj, list())
+  resources <- jsonlite::parse_json(txt)
+
+  # Package metadata included in resources
+  expect_true(any(grepl("metadata.rds", vapply(resources, `[[`, character(1), "name"), fixed = TRUE)))
+})
+
+test_that("quarto_ext handles `extension app-resources` with additional binary files", {
+  maybe_skip_test()
+
+  assets_ensure()
+
+  # Clean-up on exit
+  tmpdir <- tempdir()
+  wd <- setwd(tmpdir)
+  on.exit({
+    setwd(wd)
+    fs::dir_delete(tmpdir)
+  })
+
+  # A binary file included in app.json should successfully be decoded while
+  # building package metadata for app-resources.
+  app_json <- '[{"name":"app.R","type":"text","content":"library(shiny)"},{"name":"image.png","type":"binary","content":"iVBORw0KGgoAAAANSUhEUgAAAQAAAAEAAQMAAABmvDolAAAAA1BMVEW10NBjBBbqAAAAH0lEQVRoge3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAvg0hAAABmmDh1QAAAABJRU5ErkJggg=="}]'
+  writeLines(app_json, "app.json")
+
+  txt <- collapse(capture.output({
+    quarto_ext(c("extension", "app-resources"), con = "app.json")
+  }))
+  resources <- jsonlite::parse_json(txt)
+
+  # Package metadata included in resources
+  expect_true(any(grepl("metadata.rds", vapply(resources, `[[`, character(1), "name"), fixed = TRUE)))
 })

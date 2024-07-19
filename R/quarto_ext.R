@@ -5,6 +5,7 @@
 #' @param args Command line arguments passed by the extension. See details for more information.
 #' @param ... Ignored.
 #' @param pretty Whether to pretty print the JSON output.
+#' @param con File from which to take input. Default: `"stdin"`.
 #' @return Nothing. Values are printed to stdout.
 #' @section Command arguments:
 #'
@@ -108,23 +109,24 @@
 #'     ]
 #'     ```
 #'
-#' @importFrom rlang is_interactive
 quarto_ext <- function(
-    args = commandArgs(trailingOnly = TRUE),
-    ...,
-    pretty = is_interactive()) {
+  args = commandArgs(trailingOnly = TRUE),
+  ...,
+  pretty = is_interactive(),
+  con = "stdin"
+) {
   stopifnot(length(list(...)) == 0)
   # This method should not print anything to stdout. Instead, it should return a JSON string that will be printed by the extension.
   stopifnot(length(args) >= 1)
 
   followup_statement <- function() {
-    paste0(
-      "Please update your `quarto-ext/shinylive` Quarto extension for the latest integration.\n",
-      "To update the shinylive extension, run this command in your Quarto project:\n",
-      "\tquarto add quarto-ext/shinylive\n",
-      "\n",
-      paste0("R shinylive package version:  ", SHINYLIVE_R_VERSION), "\n",
-      paste0("Supported assets version: ", assets_version())
+    c(
+      i = "Please update your {.href [quarto-ext/shinylive](https://github.com/quarto-ext/shinylive)} Quarto extension for the latest integration.",
+      i = "To update the shinylive extension, run this command in your Quarto project:",
+      "\t{.code quarto add quarto-ext/shinylive}",
+      "",
+      "R shinylive package version: {.field {SHINYLIVE_R_VERSION}}",
+      "Supported assets version: {.field {assets_version()}}"
     )
   }
 
@@ -135,52 +137,54 @@ quarto_ext <- function(
   }
 
   if (args[1] != "extension") {
-    stop(
-      "Unknown command: '", args[1], "'\n",
-      "Expected `extension` as first argument\n",
-      "\n",
+    cli::cli_abort(c(
+      "Unknown command: {.strong {args[1]}}. Expected {.var extension} as first argument",
+      "",
       followup_statement()
-    )
+    ))
   }
 
+  methods <- list(
+    "info" = "Package, version, asset version, and script paths information",
+    "base-htmldeps" = "Quarto html dependencies for the base shinylive integration",
+    "language-resources" = "R's resource files for the quarto html dependency named `shinylive`",
+    "app-resources" = "App-specific resource files for the quarto html dependency named `shinylive`"
+  )
 
-  if (
-    (not_enough_args <- length(args) < 2) ||
-      (invalid_arg <- !(args[2] %in% c(
-        "info",
-        "base-htmldeps",
-        "language-resources",
-        "app-resources"
-      )))
-  ) {
-    stop(
+  not_enough_args <- length(args) < 2
+  invalid_arg <- length(args) >= 2 && !(args[2] %in% names(methods))
+
+  if (not_enough_args || invalid_arg) {
+    msg_stop <- 
       if (not_enough_args) {
-        "Missing `extension` subcommand\n"
+        "Missing {.var extension} subcommand"
       } else if (invalid_arg) {
-        paste0("Unknown `extension` subcommand: '", args[2], "'\n")
-      },
-      "Known methods:\n",
-      paste0(
-        "    ",
-        c(
-          "info               - Package, version, asset version, and script paths information",
-          "base-htmldeps      - Quarto html dependencies for the base shinylive integration",
-          "language-resources - R's resource files for the quarto html dependency named `shinylive`",
-          "app-resources      - App-specific resource files for the quarto html dependency named `shinylive`"
-        ),
-        collapse = "\n"
-      ),
-      "\n\n",
+        "Unknown {.var extension} subcommand {.strong {args[2]}}"
+      }
+    
+    msg_methods <- c()
+    for (method in names(methods)) {
+      method_desc <- methods[[method]]
+      msg_methods <- c(msg_methods, paste(cli::style_bold(method), "-", method_desc))
+    }
+
+    cli::cli_abort(c(
+      msg_stop,
+      "",
+      cli::style_underline("Available methods"),
+      msg_methods,
+      "",
       followup_statement()
-    )
+    ))
   }
   stopifnot(length(args) >= 2)
 
-  ret <- switch(args[2],
+  ret <- switch(
+    args[2],
     "info" = {
       list(
         "version" = SHINYLIVE_R_VERSION,
-        "assets_version" = SHINYLIVE_ASSETS_VERSION,
+        "assets_version" = assets_version(),
         "scripts" = list(
           "codeblock-to-json" = quarto_codeblock_to_json_path()
         )
@@ -204,7 +208,8 @@ quarto_ext <- function(
       # shinylive_python_resources()
     },
     "app-resources" = {
-      list()
+      app_json <- readLines(con, warn = FALSE)
+      build_app_resources(app_json)
     },
     {
       stop("Not implemented `extension` type: ", args[2])
@@ -220,6 +225,58 @@ quarto_ext <- function(
   invisible()
 }
 
+build_app_resources <- function(app_json) {
+  appdir <- fs::path(".quarto", "_webr", "appdir")
+  destdir <- fs::path(".quarto", "_webr", "destdir")
+
+  # Build app directory, removing any previous app expanded there
+  if (fs::dir_exists(appdir)) {
+    fs::dir_delete(appdir)
+  }
+  fs::dir_create(appdir, recurse = TRUE)
+
+  # Convert app.json into files on disk, so we can use `renv::dependencies()`
+  app <- jsonlite::fromJSON(
+    app_json,
+    simplifyDataFrame = FALSE,
+    simplifyMatrix = FALSE
+  )
+  lapply(app, function(file) {
+    file_path <- fs::path(appdir, file$name)
+    if (file$type == "text") {
+      writeLines(file$content, file_path)
+    } else {
+      try({
+        raw_content <- jsonlite::base64_dec(file$content)
+        writeBin(raw_content, file_path, useBytes = TRUE)
+      })
+    }
+  })
+
+  # Download wasm binaries ready to embed into Quarto deps
+  withr::with_options(
+    list(shinylive.quiet = TRUE),
+    download_wasm_packages(appdir, destdir, package_cache = TRUE)
+  )
+
+  # Enumerate R package Wasm binaries and prepare the VFS images as html deps
+  webr_dir <- fs::path(destdir, "shinylive", "webr")
+  packages_files <- dir(webr_dir, recursive = TRUE, full.names = FALSE)
+  packages_paths <- file.path("shinylive", "webr", packages_files)
+  packages_abs <- file.path(fs::path_abs(webr_dir), packages_files)
+
+  Map(
+    USE.NAMES = FALSE,
+    packages_paths,
+    packages_abs,
+    f = function(rel_common_file, abs_common_file) {
+      html_dep_obj(
+        name = rel_common_file,
+        path = abs_common_file
+      )
+    }
+  )
+}
 
 quarto_codeblock_to_json_path <- function() {
   file.path(assets_dir(), "scripts", "codeblock-to-json.js")

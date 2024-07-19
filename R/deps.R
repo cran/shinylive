@@ -1,9 +1,10 @@
 HTML_DEP_ITEM_CLASS <- "shinylive_html_dep"
 html_dep_obj <- function(
-    ...,
-    name,
-    path,
-    attribs = NULL) {
+  ...,
+  name,
+  path,
+  attribs = NULL
+) {
   stopifnot(length(list(...)) == 0)
   assert_nzchar_string(name)
   assert_nzchar_string(path)
@@ -23,9 +24,10 @@ html_dep_obj <- function(
 
 HTML_DEP_SERVICEWORKER_CLASS <- "shinylive_html_dep_serviceworker"
 html_dep_serviceworker_obj <- function(
-    ...,
-    source,
-    destination) {
+  ...,
+  source,
+  destination
+) {
   stopifnot(length(list(...)) == 0)
   assert_nzchar_string(source)
   assert_nzchar_string(destination)
@@ -40,15 +42,16 @@ html_dep_serviceworker_obj <- function(
 
 QUARTO_HTML_DEPENDENCY_CLASS <- "shinylive_quarto_html_dependency"
 quarto_html_dependency_obj <- function(
-    ...,
-    name,
-    version = NULL,
-    scripts = NULL,
-    stylesheets = NULL,
-    resources = NULL,
-    meta = NULL,
-    head = NULL,
-    serviceworkers = NULL) {
+  ...,
+  name,
+  version = NULL,
+  scripts = NULL,
+  stylesheets = NULL,
+  resources = NULL,
+  meta = NULL,
+  head = NULL,
+  serviceworkers = NULL
+) {
   stopifnot(length(list(...)) == 0)
   assert_nzchar_string(name)
   is.null(version) || assert_nzchar_string(version)
@@ -75,28 +78,28 @@ quarto_html_dependency_obj <- function(
   )
 }
 
-shinylive_base_deps_htmldep <- function(sw_dir = NULL) {
+shinylive_base_deps_htmldep <- function(sw_dir = NULL, version = assets_version()) {
   list(
-    serviceworker_dep(sw_dir),
-    shinylive_common_dep_htmldep("base")
+    serviceworker_dep(sw_dir, version = version),
+    shinylive_common_dep_htmldep("base", version = version)
   )
 }
-shinylive_r_resources <- function() {
-  shinylive_common_dep_htmldep("r")$resources
+shinylive_r_resources <- function(version = assets_version()) {
+  shinylive_common_dep_htmldep("r", version = version)$resources
 }
 # Not used in practice!
-shinylive_python_resources <- function(sw_dir = NULL) {
-  shinylive_common_dep_htmldep("python")$resources
+shinylive_python_resources <- function(sw_dir = NULL, version = assets_version()) {
+  shinylive_common_dep_htmldep("python", version = version)$resources
 }
 
 
-serviceworker_dep <- function(sw_dir) {
+serviceworker_dep <- function(sw_dir, version = assets_version()) {
   quarto_html_dependency_obj(
     name = "shinylive-serviceworker",
-    version = SHINYLIVE_ASSETS_VERSION,
+    version = version,
     serviceworkers = list(
       html_dep_serviceworker_obj(
-        source = file.path(assets_dir(), "shinylive-sw.js"),
+        source = file.path(assets_dir(version = version), "shinylive-sw.js"),
         destination = "/shinylive-sw.js"
       )
     ),
@@ -117,8 +120,11 @@ serviceworker_dep <- function(sw_dir) {
 # dependencies; in other words, the files that are always included in a
 # Shinylive deployment.
 # """
-shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
-  assets_path <- assets_dir()
+shinylive_common_dep_htmldep <- function(
+  dep_type = c("base", "python", "r"),
+  version = assets_version()
+) {
+  assets_path <- assets_dir(version = version)
   # In quarto ext, keep support for python engine
   rel_common_files <- shinylive_common_files(dep_type = dep_type)
   abs_common_files <- file.path(assets_path, rel_common_files)
@@ -129,7 +135,8 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
   stylesheets <- NULL
   resources <- NULL
 
-  switch(dep_type,
+  switch(
+    dep_type,
     "python" = ,
     "r" = {
       # Language specific files are all resources
@@ -157,7 +164,8 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
         abs_common_files,
         basename(rel_common_files),
         f = function(rel_common_file, abs_common_file, common_file_basename) {
-          switch(common_file_basename,
+          switch(
+            common_file_basename,
             "run-python-blocks.js" = {
               run_python_blocks_dep <<-
                 html_dep_obj(
@@ -198,7 +206,7 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
 
       # Put load-shinylive-sw.js in the scripts first
       if (is.null(load_shinylive_dep)) {
-        stop("load-shinylive-sw.js not found in assets")
+        cli::cli_abort("{.path load-shinylive-sw.js} not found in assets")
       }
       scripts <- c(list(load_shinylive_dep), scripts)
 
@@ -208,7 +216,7 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
       }
     },
     {
-      stop("unknown dep_type: ", dep_type)
+      cli::cli_abort("Unknown {.var dep_type}: {.val dep_type}")
     }
   )
 
@@ -218,7 +226,7 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
   quarto_html_dependency_obj(
     # MUST be called `"shinylive"` to match quarto ext name
     name = "shinylive",
-    version = SHINYLIVE_ASSETS_VERSION,
+    version = assets_version(),
     scripts = scripts,
     stylesheets = stylesheets,
     resources = resources
@@ -230,11 +238,14 @@ shinylive_common_dep_htmldep <- function(dep_type = c("base", "python", "r")) {
 # Return a list of files that are base dependencies; in other words, the files
 # that are always included in a Shinylive deployment.
 # """
-shinylive_common_files <- function(dep_type = c("base", "python", "r")) {
+shinylive_common_files <- function(
+  dep_type = c("base", "python", "r"),
+  version = assets_version()
+) {
   dep_type <- match.arg(dep_type)
-  assets_ensure()
+  assets_ensure(version = version)
 
-  assets_folder <- assets_dir()
+  assets_folder <- assets_dir(version = version)
   # # `dir()` is 10x faster than `fs::dir_ls()`
   # common_files <- dir(assets_folder, recursive = TRUE)
 
@@ -263,7 +274,8 @@ shinylive_common_files <- function(dep_type = c("base", "python", "r")) {
   }
 
   common_files <-
-    switch(dep_type,
+    switch(
+      dep_type,
       "base" = {
         # Do copy any "top-level" python files as they are minimal
         c(
@@ -285,7 +297,7 @@ shinylive_common_files <- function(dep_type = c("base", "python", "r")) {
         )
       },
       {
-        stop("unknown dep_type: ", dep_type)
+        cli::cli_abort("Unknown {.var dep_type}: {.val dep_type}")
       }
     )
 

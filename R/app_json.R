@@ -42,8 +42,9 @@ app_info_obj <- function(appdir, subdir, files) {
 #     they are in a subdir of the application.
 # """
 read_app_files <- function(
-    appdir,
-    destdir) {
+  appdir,
+  destdir
+) {
   exclude_names <- c("__pycache__", "venv", ".venv", "rsconnect")
   # exclude_names_map <- setNames(rep(TRUE, length(exclude_names)), exclude_names)
   is_excluded <- function(name) {
@@ -114,10 +115,10 @@ read_app_files <- function(
 
         cur_basename <- basename(cur_path)
         if (cur_basename == "shinylive.js") {
-          message(
-            "Warning: Found shinylive.js in source directory '", curdur, "'.",
-            " Are you including a shinylive distribution in your app?"
-          )
+          cli::cli_warn(c(
+            "Warning: Found {.path shinylive.js} in source directory {.path {curdur}}.",
+            i = "Are you including a shinylive distribution in your app?"
+          ))
         }
 
         # Get file content
@@ -151,17 +152,18 @@ read_app_files <- function(
 # """
 # Write index.html, edit/index.html, and app.json for an application in the destdir.
 # """
-#' @importFrom rlang is_interactive
 write_app_json <- function(
   app_info,
   destdir,
-  html_source_dir,
-  verbose = is_interactive()
+  template_dir,
+  template_params = list(),
+  quiet = getOption("shinylive.quiet", FALSE)
 ) {
-  verbose_print <- if (isTRUE(verbose)) message else list
+  local_quiet(quiet)
+
   stopifnot(inherits(app_info, APP_INFO_CLASS))
   # stopifnot(fs::dir_exists(destdir))
-  stopifnot(fs::dir_exists(html_source_dir))
+  stopifnot(fs::dir_exists(template_dir))
 
   app_destdir <- fs::path(destdir, app_info$subdir)
 
@@ -172,50 +174,47 @@ write_app_json <- function(
     subdir_inverse <- paste0(subdir_inverse, "/")
   }
 
+  # Then iterate over the HTML files in the template directory and interpolate
+  # the template parameters.
+  template_files <- fs::dir_ls(template_dir, recurse = TRUE, type = "file")
 
-  for (copy_info in list(
-    list(
-      src = fs::path(html_source_dir, "index.html"),
-      dest = fs::path(app_destdir, "index.html")
-    ),
-    list(
-      src = fs::path(html_source_dir, "edit", "index.html"),
-      dest = fs::path(app_destdir, "edit", "index.html")
-    )
-  )) {
-    # Create destination directory
-    fs::dir_create(fs::path_dir(copy_info$dest))
+  template_params <- rlang::dots_list(
+    # Forced parameters
+    REL_PATH = subdir_inverse,
+    APP_ENGINE = "r",
+    # User parameters
+    !!!template_params,
+    # Default parameters
+    title = "Shiny App",
+    .homonyms = "first"
+  )
 
-    # Read file
-    index_content <- brio::read_file(copy_info$src)
-    # Replace template info
-    index_content <- gsub(
-      pattern = "{{REL_PATH}}",
-      replacement = subdir_inverse,
-      index_content,
-      fixed = TRUE
-    )
+  for (template_file in template_files) {
+    dest_file <- fs::path(app_destdir, fs::path_rel(template_file, template_dir))
+    fs::dir_create(fs::path_dir(dest_file))
 
-    # Set wasm engine
-    index_content <- gsub(
-      pattern = "{{APP_ENGINE}}",
-      replacement = "r",
-      index_content,
-      fixed = TRUE
-    )
-
-    # Save updated file contents
-    brio::write_file(index_content, copy_info$dest)
+    if (fs::path_ext(template_file) == "html") {
+      file_content <- whisker::whisker.render(
+        template = brio::read_file(template_file), 
+        data = template_params
+      )
+      brio::write_file(file_content, dest_file)
+    } else {
+      fs::file_copy(template_file, dest_file)
+    }
   }
 
   app_json_output_file <- fs::path(app_destdir, "app.json")
 
-  verbose_print("Writing ", app_json_output_file, appendLF = FALSE)
+  cli_progress_step("Writing {.path {app_json_output_file}}")
   jsonlite::write_json(
     app_info$files,
     path = app_json_output_file,
     auto_unbox = TRUE,
     pretty = FALSE
   )
-  verbose_print(": ", fs::file_info(app_json_output_file)$size[1], " bytes")
+  cli_progress_done()
+  cli_alert_info("Wrote {.path {app_json_output_file}} ({fs::file_info(app_json_output_file)$size[1]} bytes)")
+  
+  invisible(app_json_output_file)
 }

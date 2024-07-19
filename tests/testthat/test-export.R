@@ -1,36 +1,25 @@
+expect_silent_unattended <- function(expr) {
+  if (interactive()) {
+    return(expr)
+  }
+  expect_silent(expr)
+}
+
 test_that("export - app.R", {
   maybe_skip_test()
 
   assets_ensure()
 
-  # Create a temporary directory
-  app_file <- file.path(tempfile(), "app.R")
-  app_dir <- dirname(app_file)
-  dir.create(app_dir, recursive = TRUE)
-  on.exit(unlink_path(app_dir), add = TRUE)
-  cat(
-    file = app_file,
-    collapse(c(
-      "library(shiny)",
-      "shinyApp(",
-      "    fluidPage(",
-      "        sliderInput(\"n\", \"N\", 0, 100, 40),",
-      "        verbatimTextOutput(\"txt\", placeholder = TRUE),",
-      "    ),",
-      "    function(input, output) {",
-      "        output$txt <- renderText({",
-      "            paste0(\"The value of n*2 is \", 2 * input$n)",
-      "        })",
-      "    }",
-      ")",
-      ""
-    ))
-  )
+  # Ensure pkgcache metadata has been loaded
+  invisible(pkgcache::meta_cache_list())
 
-  # Create a temporary directory
+  # Create a temporary output directory
   out_dir <- file.path(tempfile(), "out")
+  on.exit(unlink_path(out_dir), add = TRUE)
 
-  expect_silent({
+  app_dir <- test_path("apps", "app-r")
+
+  expect_silent_unattended({
     export(app_dir, out_dir)
   })
 
@@ -44,7 +33,7 @@ test_that("export - app.R", {
   )
   expect_setequal(dir(file.path(out_dir, "edit")), asset_edit_files)
 
-  expect_silent({
+  expect_silent_unattended({
     export(app_dir, out_dir, subdir = "test_subdir")
   })
 
@@ -65,58 +54,84 @@ test_that("export - server.R", {
 
   assets_ensure()
 
-  app_dir <- tempfile()
-  dir.create(app_dir, recursive = TRUE)
-  on.exit(unlink_path(app_dir), add = TRUE)
-  server_r <- file.path(app_dir, "server.R")
-  ui_r <- file.path(app_dir, "ui.R")
-  global_r <- file.path(app_dir, "global.R")
-
-  cat(
-    file = server_r,
-    collapse(c(
-      "library(shiny)",
-      "shinyServer(function(input, output, session) {",
-      "  output$txt <- renderText({",
-      "    paste0(\"The value of n*2 is \", 2 * input$n)",
-      "  })",
-      "})",
-      ""
-    ))
-  )
-  cat(
-    file = ui_r,
-    collapse(c(
-      "library(shiny)",
-      "shinyUI(fluidPage(",
-      "  sliderInput(\"n\", \"N\", 0, 100, 40),",
-      "  verbatimTextOutput(\"txt\", placeholder = TRUE),",
-      "))",
-      ""
-    ))
-  )
-  cat(
-    file = global_r,
-    collapse(c(
-      "library(shiny)",
-      "global_value <- 50",
-      ""
-    ))
-  )
-
   # Create a temporary directory
   out_dir <- file.path(tempfile(), "out")
+  on.exit(unlink_path(out_dir))
+
+  app_dir <- test_path("apps", "server-r")
 
   # Verify global.R / ui.R / server.R app can be exported
-  expect_silent({
+  expect_silent_unattended({
     export(app_dir, out_dir)
   })
+  
   # Verify global.R / ui.R / server.R exported files exist
-
   app_json <- jsonlite::read_json(file.path(out_dir, "app.json"))
   out_app_file_names <- vapply(app_json, `[[`, character(1), "name")
   expect_setequal(
     out_app_file_names,
     c("global.R", "ui.R", "server.R")
+  )
+})
+
+test_that("export with template", {
+  maybe_skip_test()
+  skip_if(assets_version() <= "0.4.1")
+
+  # For local testing until next release after 0.4.1
+  # withr::local_envvar(list("SHINYLIVE_ASSETS_VERSION" = "0.4.1"))
+
+  assets_ensure()
+  
+  path_export <- test_path("apps", "export_template")
+
+  if (FALSE) {
+    # Run this manually to re-initialize the export template, but you'll need to
+    # add the template parameters tested below.
+    path_export_src <- fs::path(shinylive:::assets_dir(), "export_template")
+    fs::dir_copy(path_export_src, path_export, overwrite = TRUE)
+  }
+
+  # Create a temporary directory
+  out_dir <- file.path(tempfile(), "out")
+  on.exit(unlink_path(out_dir))
+
+  app_dir <- test_path("apps", "app-r")
+
+  expect_silent_unattended({
+    export(
+      app_dir,
+      out_dir,
+      template_dir = path_export,
+      template_params = list(
+        # Included in export template for > 0.4.1
+        title = "Shinylive Test App",
+        include_before_body = "<h1>Shinylive Test App</h1>",
+        include_after_body = "<footer>r-shinylive</footer>",
+        # Included in the customized export template in test suite
+        description = "My custom export template param test app"
+      )
+    )
+  })
+
+  index_content <- brio::read_file(fs::path(out_dir, "index.html"))
+  expect_match(
+    index_content,
+    "<title>Shinylive Test App</title>"
+  )
+  
+  expect_match(
+    index_content,
+    "<body>\\s+<h1>Shinylive Test App</h1>"
+  )
+
+  expect_match(
+    index_content,
+    "<footer>r-shinylive</footer>\\s+</body>"
+  )
+
+  expect_match(
+    index_content,
+    "<meta name=\"description\" content=\"My custom export template param test app\">"
   )
 })

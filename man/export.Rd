@@ -4,7 +4,19 @@
 \alias{export}
 \title{Export a Shiny app to a directory}
 \usage{
-export(appdir, destdir, ..., subdir = "", verbose = is_interactive())
+export(
+  appdir,
+  destdir,
+  ...,
+  subdir = "",
+  quiet = getOption("shinylive.quiet", !is_interactive()),
+  wasm_packages = TRUE,
+  package_cache = TRUE,
+  assets_version = NULL,
+  template_dir = NULL,
+  template_params = list(),
+  verbose = NULL
+)
 }
 \arguments{
 \item{appdir}{Directory containing the application.}
@@ -15,8 +27,43 @@ export(appdir, destdir, ..., subdir = "", verbose = is_interactive())
 
 \item{subdir}{Subdirectory of \code{destdir} to write the app to.}
 
-\item{verbose}{Print verbose output. Defaults to \code{TRUE} if running
-interactively.}
+\item{quiet}{Suppress console output during export. Follows the global
+\code{shinylive.quiet} option or defaults to \code{FALSE} in interactive sessions if
+not set.}
+
+\item{wasm_packages}{Download and include binary WebAssembly packages as
+part of the output app's static assets. Defaults to \code{TRUE}.}
+
+\item{package_cache}{Cache downloaded binary WebAssembly packages. Defaults
+to \code{TRUE}.}
+
+\item{assets_version}{The version of the Shinylive assets to use in the
+exported app. Defaults to \code{\link[=assets_version]{assets_version()}}. Note, not all custom assets
+versions may work with this release of \pkg{shinylive}. Please visit the
+\href{https://github.com/posit-dev/shinylive/releases}{shinylive asset releases}
+website to learn more information about the available \code{assets_version}
+values.}
+
+\item{template_dir}{Path to a custom template directory to use when exporting
+the shinylive app. The template can be copied from the shinylive assets
+using: \code{fs::path(shinylive:::assets_dir(), "export_template")}.}
+
+\item{template_params}{A list of parameters to pass to the template. The
+supported parameters depends on the template being used. Custom templates
+may support additional parameters (see \code{template_dir} for instructions on
+creating a custom template or to find the current shinylive assets'
+templates).
+
+With shinylive assets > 0.4.1, the default export template supports the
+following parameters:
+\enumerate{
+\item \code{title}: The title of the app. Defaults to \code{"Shiny app"}.
+\item \code{include_in_head}, \code{include_before_body}, \code{include_after_body}: Raw
+HTML to be included in the \verb{<head>}, just after the opening \verb{<body>},
+or just before the closing \verb{</body>} tag, respectively.
+}}
+
+\item{verbose}{Deprecated, please use \code{quiet} instead.}
 }
 \value{
 Nothing. The app is exported to \code{destdir}. Instructions for serving
@@ -27,7 +74,7 @@ This function exports a Shiny app to a directory, which can then be served
 using \code{httpuv}.
 }
 \examples{
-\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (rlang::is_interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 app_dir <- system.file("examples", "01_hello", package = "shiny")
 out_dir <- tempfile("shinylive-export")
 
