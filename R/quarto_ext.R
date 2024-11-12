@@ -226,8 +226,9 @@ quarto_ext <- function(
 }
 
 build_app_resources <- function(app_json) {
-  appdir <- fs::path(".quarto", "_webr", "appdir")
-  destdir <- fs::path(".quarto", "_webr", "destdir")
+  projdir <- Sys.getenv("QUARTO_PROJECT_DIR", ".")
+  appdir <- fs::path(projdir, ".quarto", "_webr", "appdir")
+  destdir <- fs::path(projdir, ".quarto", "_webr", "destdir")
 
   # Build app directory, removing any previous app expanded there
   if (fs::dir_exists(appdir)) {
@@ -242,7 +243,18 @@ build_app_resources <- function(app_json) {
     simplifyMatrix = FALSE
   )
   lapply(app, function(file) {
-    file_path <- fs::path(appdir, file$name)
+    file_name <- fs::path_norm(file$name)
+    
+    if (grepl("^(/|[.]{2})", file_name)) {
+      cli::cli_abort(c(
+        "App file paths must be relative to the app directory",
+        x = "Invalid file path: {.path {file$name}}"
+      ))
+    }
+
+    file_path <- fs::path(appdir, file_name)
+    fs::dir_create(fs::path_dir(file_path))
+    
     if (file$type == "text") {
       writeLines(file$content, file_path)
     } else {
@@ -253,11 +265,14 @@ build_app_resources <- function(app_json) {
     }
   })
 
-  # Download wasm binaries ready to embed into Quarto deps
-  withr::with_options(
-    list(shinylive.quiet = TRUE),
-    download_wasm_packages(appdir, destdir, package_cache = TRUE)
-  )
+  wasm_packages <- sys_env_wasm_packages()
+  if (wasm_packages && wasm_packages_able(assets_version())) {
+    # Download wasm binaries ready to embed into Quarto deps
+    withr::with_options(
+      list(shinylive.quiet = TRUE),
+      download_wasm_packages(appdir, destdir, package_cache = TRUE, max_filesize = NULL)
+    )
+  }
 
   # Enumerate R package Wasm binaries and prepare the VFS images as html deps
   webr_dir <- fs::path(destdir, "shinylive", "webr")

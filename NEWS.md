@@ -1,3 +1,15 @@
+# shinylive 0.3.0
+
+* Updated default shinylive assets to [v0.9.1](https://github.com/posit-dev/shinylive/releases/tag/v0.9.1). (#120, #129, #135)
+
+* Resources are now built relative to Quarto project root. (#130)
+
+* In CI and other automated workflow settings the `SHINYLIVE_WASM_PACKAGES` environment variable can now be used to control whether WebAssembly R package binaries are bundled with the exported shinylive app, in addition to the `wasm_packages` argument of the `export()` function. (#116)
+
+* shinylive now avoids bundling WebAssembly R package dependencies listed only in the `LinkingTo` section of required packages. With this change dependencies that are only required at build time are no longer included as part of the exported WebAssembly asset bundle. This reduces the total static asset size and improves the loading time of affected shinylive apps. (#115)
+
+* shinylive now supports adding files in virtual subdirectories in `shinylive-r` apps embedded in Quarto documents. For example, `## file: R/load_data.R` in a `shinylive-r` chunk followed by the `load_data.R` code will create a file `load_data.R` in the `R` subdirectory of the exported app. (#119)
+
 # shinylive 0.2.0
 
 * shinylive now uses [shinylive web assets v0.5.0](https://github.com/posit-dev/shinylive/releases/tag/v0.5.0) by default, which bundles webR 0.4.0 with R 4.4.1. This update brings improved keyboard shortcuts for R users in the Shinylive editor, the ability to export a custom library of R packages with the exported app, and a few improvements to the Quarto integration. (#108)
@@ -15,7 +27,9 @@
 # shinylive 0.1.1
 
 * Bump shinylive assets dependency to 0.2.3. (#38)
+
 * Use `{httpuv}` to serve static folder instead of plumber. (#40)
+
 * Use `{httr2}` to download assets from GitHub releases. (@dgkf #30, #39)
 
 # shinylive 0.1.0

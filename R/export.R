@@ -10,10 +10,17 @@
 #'   `shinylive.quiet` option or defaults to `FALSE` in interactive sessions if
 #'   not set.
 #' @param verbose Deprecated, please use `quiet` instead.
-#' @param wasm_packages Download and include binary WebAssembly packages as
-#'   part of the output app's static assets. Defaults to `TRUE`.
+#' @param wasm_packages Download and include binary WebAssembly packages as part
+#'   of the output app's static assets. Logical, defaults to `TRUE`. The default
+#'   value can be changed by setting the environment variable
+#'   `SHINYLIVE_WASM_PACKAGES` to `TRUE` or `1` to enable, `FALSE` or `0` to
+#'   disable.
 #' @param package_cache Cache downloaded binary WebAssembly packages. Defaults
 #'   to `TRUE`.
+#' @param max_filesize Maximum file size for bundling of WebAssembly package
+#'   assets. Parsed by [fs::fs_bytes()]. Defaults to `"100M"`. The default
+#'   value can be changed by setting the environment variable
+#'   `SHINYLIVE_DEFAULT_MAX_FILESIZE`. Set to `Inf`, `NA` or `-1` to disable.
 #' @param assets_version The version of the Shinylive assets to use in the
 #'   exported app. Defaults to [assets_version()]. Note, not all custom assets
 #'   versions may work with this release of \pkg{shinylive}. Please visit the
@@ -57,8 +64,9 @@ export <- function(
   ...,
   subdir = "",
   quiet = getOption("shinylive.quiet", !is_interactive()),
-  wasm_packages = TRUE,
+  wasm_packages = NULL,
   package_cache = TRUE,
+  max_filesize = NULL,
   assets_version = NULL,
   template_dir = NULL,
   template_params = list(),
@@ -78,6 +86,8 @@ export <- function(
   if (is.null(assets_version)) {
     assets_version <- assets_version()
   }
+
+  wasm_packages <- wasm_packages %||% sys_env_wasm_packages()
 
   if (!fs::is_dir(appdir)) {
     cli::cli_abort("{.var appdir} must be a directory, but was provided {.path {appdir}}.")
@@ -193,8 +203,8 @@ export <- function(
   # =========================================================================
   # Copy app package dependencies as Wasm binaries
   # =========================================================================
-  if (wasm_packages) {
-    download_wasm_packages(appdir, destdir, package_cache)
+  if (wasm_packages && wasm_packages_able(assets_version)) {
+    download_wasm_packages(appdir, destdir, package_cache, max_filesize)
   }
 
   # =========================================================================
@@ -217,4 +227,16 @@ export <- function(
   cli_text('{.run httpuv::runStaticServer("{destdir_esc}")}')
 
   invisible(destdir)
+}
+
+wasm_packages_able <- function(assets_version) {
+  if (assets_version <= package_version("0.7.0")) {
+    cli::cli_warn(c(
+      "Can't bundle WebAssembly R packages for legacy Shinylive assets version: {assets_version}.",
+      "i" = "Use Shinylive assets version 0.8.0 or later to bundle WebAssembly R package binaries."
+    ))
+    FALSE
+  } else {
+    TRUE
+  }
 }

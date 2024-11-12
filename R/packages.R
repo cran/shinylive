@@ -1,4 +1,23 @@
-# Resolve package list hard dependencies
+SHINYLIVE_DEFAULT_MAX_FILESIZE <- "100MB"
+SHINYLIVE_WASM_PACKAGES <- TRUE
+
+# Sys env maximum filesize for asset bundling
+sys_env_max_filesize <- function() {
+  max_fs_env <- Sys.getenv("SHINYLIVE_DEFAULT_MAX_FILESIZE")
+  if (max_fs_env == "") NULL else max_fs_env
+}
+
+sys_env_wasm_packages <- function() {
+  pkgs_env <- Sys.getenv("SHINYLIVE_WASM_PACKAGES", SHINYLIVE_WASM_PACKAGES)
+  pkgs_env <- switch(pkgs_env, "1" = TRUE, "0" = FALSE, pkgs_env)
+  wasm_packages <- as.logical(pkgs_env)
+  if (is.na(wasm_packages)) {
+    cli::cli_abort("Could not parse `wasm_packages` value: {.code {pkgs_env}}")
+  }
+  wasm_packages
+}
+
+# Resolve package list, dependencies listed in Depends and Imports
 resolve_dependencies <- function(pkgs, local = TRUE) {
   pkg_refs <- if (local) {
     refs <- find.package(pkgs, lib.loc = NULL, quiet = FALSE, !is_quiet())
@@ -6,26 +25,16 @@ resolve_dependencies <- function(pkgs, local = TRUE) {
   } else {
     pkgs
   }
-  inst <- pkgdepends::new_pkg_deps(pkg_refs)
+  wasm_config <- list(
+    platforms = "source",
+    dependencies = list(c("Depends", "Imports"), c("Depends", "Imports"))
+  )
+  inst <- pkgdepends::new_pkg_deps(pkg_refs, config = wasm_config)
   inst$resolve()
   unique(inst$get_resolution()$package)
 }
 
-get_default_wasm_assets <- function(desc) {
-  pkg <- desc$Package
-  r_wasm <- "http://repo.r-wasm.org"
-  # TODO: Restore the use of short version, once webR with R 4.4.0 is released.
-  #       This function can then be merged with `get_r_universe_wasm_assets()`
-  r_short <- WEBR_R_VERSION
-  contrib <- glue::glue("{r_wasm}/bin/emscripten/contrib/{r_short}")
-
-  info <- utils::available.packages(contriburl = contrib)
-  if (!pkg %in% rownames(info)) {
-    cli::cli_warn("Can't find {.pkg {pkg}} in webR binary repository.")
-    return(list())
-  }
-  ver <- info[pkg, "Version", drop = TRUE]
-
+check_repo_pkg_version <- function(desc, ver, pkg) {
   # Show a warning if packages major.minor versions differ
   # We don't worry too much about patch, since webR versions of packages may be
   # patched at the repo for compatibility with Emscripten
@@ -38,53 +47,26 @@ get_default_wasm_assets <- function(desc) {
       "i" = "Install a package version matching the WebAssembly version to silence this error."
     ))
   }
-
-  list(
-    list(
-      filename = glue::glue("{pkg}_{ver}.data"),
-      url = glue::glue("{contrib}/{pkg}_{ver}.data")
-    ),
-    list(
-      filename = glue::glue("{pkg}_{ver}.js.metadata"),
-      url = glue::glue("{contrib}/{pkg}_{ver}.js.metadata")
-    )
-  )
 }
 
-get_r_universe_wasm_assets <- function(desc) {
+get_wasm_assets <- function(desc, repo) {
   pkg <- desc$Package
-  r_universe <- desc$Repository
   r_short <- gsub("\\.[^.]+$", "", WEBR_R_VERSION)
-  contrib <- glue::glue("{r_universe}/bin/emscripten/contrib/{r_short}")
+  contrib <- glue::glue("{repo}/bin/emscripten/contrib/{r_short}")
 
   info <- utils::available.packages(contriburl = contrib)
   if (!pkg %in% rownames(info)) {
-    cli::cli_warn("Can't find {.pkg {pkg}} in r-universe binary repository.")
+    cli::cli_warn("Can't find {.pkg {pkg}} in Wasm binary repository: {.url {repo}}")
     return(list())
   }
-  ver <- info[pkg, "Version", drop = TRUE]
 
-  # Show a warning if packages major.minor versions differ
-  # We don't worry too much about patch, since webR versions of packages may be
-  # patched at the repo for compatibility with Emscripten
-  inst_ver <- package_version(desc$Version)
-  repo_ver <- package_version(ver)
-  if (inst_ver$major != repo_ver$major || inst_ver$minor != repo_ver$minor) {
-    cli::cli_warn(c(
-      "Package version mismatch for {.pkg {pkg}}, ensure the versions below are compatible.",
-      "!" = "Installed version: {desc$Version}, WebAssembly version: {ver}.",
-      "i" = "Install a package version matching the WebAssembly version to silence this error."
-    ))
-  }
+  ver <- info[pkg, "Version", drop = TRUE]
+  check_repo_pkg_version(desc, ver, pkg)
 
   list(
     list(
-      filename = glue::glue("{pkg}_{ver}.data"),
-      url = glue::glue("{contrib}/{pkg}_{ver}.data")
-    ),
-    list(
-      filename = glue::glue("{pkg}_{ver}.js.metadata"),
-      url = glue::glue("{contrib}/{pkg}_{ver}.js.metadata")
+      filename = glue::glue("{pkg}_{ver}.tgz"),
+      url = glue::glue("{contrib}/{pkg}_{ver}.tgz")
     )
   )
 }
@@ -117,7 +99,7 @@ get_github_wasm_assets <- function(desc) {
 
   # Find GH release asset URLs for R library VFS image
   library_data <- Filter(function(item) {
-    item$name == "library.data"
+    grepl("library.data", item$name, fixed = TRUE)
   }, tags$assets)
   library_metadata <- Filter(function(item) {
     item$name == "library.js.metadata"
@@ -189,11 +171,15 @@ prepare_wasm_metadata <- function(pkg, metadata) {
       metadata$assets <- get_github_wasm_assets(desc)
       metadata$type <- "library"
     } else if (grepl("r-universe\\.dev$", repo)) {
-      metadata$assets <- get_r_universe_wasm_assets(desc)
+      metadata$assets <- get_wasm_assets(desc, repo = desc$Repository)
+      metadata$type <- "package"
+    } else if (grepl("Bioconductor", repo)) {
+      # Use r-universe for Bioconductor packages
+      metadata$assets <- get_wasm_assets(desc, repo = "https://bioc.r-universe.dev")
       metadata$type <- "package"
     } else {
       # Fallback to repo.r-wasm.org lookup for CRAN and anything else
-      metadata$assets <- get_default_wasm_assets(desc)
+      metadata$assets <- get_wasm_assets(desc, repo = "http://repo.r-wasm.org")
       metadata$type <- "package"
     }
   } else {
@@ -215,7 +201,22 @@ env_download_wasm_core_packages <- function() {
   strsplit(pkgs, "\\s*[ ,\n]\\s*")[[1]]
 }
 
-download_wasm_packages <- function(appdir, destdir, package_cache) {
+download_wasm_packages <- function(appdir, destdir, package_cache, max_filesize) {
+  max_filesize_missing <- is.null(sys_env_max_filesize()) && is.null(max_filesize)
+  max_filesize_cli_fn <- if (max_filesize_missing) cli::cli_warn else cli::cli_abort
+
+  max_filesize <- max_filesize %||% sys_env_max_filesize() %||% SHINYLIVE_DEFAULT_MAX_FILESIZE
+  max_filesize <- if (is.na(max_filesize) || (max_filesize < 0)) Inf else max_filesize
+  max_filesize_val <- max_filesize
+  max_filesize <- fs::fs_bytes(max_filesize)
+  if (is.na(max_filesize)) {
+    cli::cli_warn(c(
+      "!" = "Could not parse `max_filesize` value: {.code {max_filesize_val}}",
+      "i" = "Setting to {.code {SHINYLIVE_DEFAULT_MAX_FILESIZE}}"
+    ))
+    max_filesize <- fs::fs_bytes(SHINYLIVE_DEFAULT_MAX_FILESIZE)
+  }
+
   # Core packages in base webR image that we don't need to download
   shiny_pkgs <- c("shiny", "bslib", "renv")
   shiny_pkgs <- resolve_dependencies(shiny_pkgs, local = FALSE)
@@ -277,13 +278,31 @@ download_wasm_packages <- function(appdir, destdir, package_cache) {
     # Create package ref and lookup download URLs
     meta <- prepare_wasm_metadata(pkg, prev_meta)
 
-    if (!meta$cached && length(meta$assets) > 0) {
+    if (!meta$cached) {
       # Download Wasm binaries and copy to static assets dir
       for (file in meta$assets) {
-        utils::download.file(file$url, fs::path(pkg_subdir, file$filename))
+        path <- fs::path(pkg_subdir, file$filename)
+        utils::download.file(file$url, path, mode = "wb")
+
+        # Disallow this package if an asset is too large
+        if (fs::file_size(path) > max_filesize) {
+          fs::dir_delete(pkg_subdir)
+          meta$assets = list()
+          max_filesize_cli_fn(c(
+            "!" = "The file size of package {.pkg {pkg}} is larger than the maximum allowed file size of {.strong {max_filesize}}.",
+            "!" = "This package will not be included as part of the WebAssembly asset bundle.",
+            "i" = "Set the maximum allowed size to {.code -1}, {.code Inf}, or {.code NA} to disable this check.",
+            "i" = if (max_filesize_missing) "Explicitly set the maximum allowed size to treat this as an error." else NULL
+          ))
+          break
+        }
       }
+
       meta$cached <- TRUE
-      meta$path <- glue::glue("packages/{pkg}/{meta$assets[[1]]$filename}")
+      meta$path <- NULL
+      if (length(meta$assets) > 0) {
+        meta$path <- glue::glue("packages/{pkg}/{meta$assets[[1]]$filename}")
+      }
     }
     meta
   })
