@@ -1,10 +1,12 @@
 Buie
 CLI
 CMD
+HTTPS
 JS
-JSON
+Lifecycle
 ORCID
 PBC
+ROR
 WebAssembly
 api
 dev
@@ -17,8 +19,6 @@ precompiled
 py
 pyodide
 pyright
-repo
-stdout
 stylesheets
 symlink
 toolchain

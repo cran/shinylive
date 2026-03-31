@@ -44,11 +44,11 @@ assets_download <- function(
   req <- httr2::request(url)
   req <- httr2::req_progress(req)
   httr2::req_perform(req, path = tmp_targz)
-  
+
   cli_progress_step("Unzipping shinylive assets to {.path {dir}}")
   fs::dir_create(dir)
   archive::archive_extract(tmp_targz, dir)
-  
+
   cli_progress_done()
   invisible(dir)
 }
@@ -83,7 +83,11 @@ assets_cache_dir_exists <- function() {
 
 # Returns the directory containing cached Shinylive assets, for a particular
 # version of Shinylive.
-assets_dir <- function(version = assets_version(), ..., dir = assets_cache_dir()) {
+assets_dir <- function(
+  version = assets_version(),
+  ...,
+  dir = assets_cache_dir()
+) {
   assets_dir_impl(dir = assets_cache_dir(), version = version)
 }
 shinylive_prefix <- "shinylive-"
@@ -92,7 +96,7 @@ assets_dir_impl <- function(
   dir = assets_cache_dir(),
   version = assets_version()
 ) {
-  stopifnot(length(list(...)) == 0)
+  rlang::check_dots_empty()
   fs::path(dir, paste0(shinylive_prefix, version))
 }
 
@@ -104,8 +108,12 @@ install_local_helper <- function(
   dir = assets_cache_dir(),
   version = package_json_version(assets_repo_dir)
 ) {
-  stopifnot(length(list(...)) == 0)
-  stopifnot(fs::dir_exists(assets_repo_dir))
+  rlang::check_dots_empty()
+  if (!fs::dir_exists(assets_repo_dir)) {
+    cli::cli_abort(
+      "Assets repo directory does not exist: {.path {assets_repo_dir}}"
+    )
+  }
   repo_build_dir <- fs::path(assets_repo_dir, "build")
   if (!fs::dir_exists(repo_build_dir)) {
     cli::cli_abort(c(
@@ -194,7 +202,6 @@ assets_install_link <- function(
 }
 
 
-
 #' @describeIn assets Ensures a local copy of shinylive is installed. If a local
 #'    copy of shinylive is not installed, it will be downloaded and installed.
 #'    If a local copy of shinylive is installed, its path will be returned.
@@ -205,7 +212,7 @@ assets_ensure <- function(
   dir = assets_cache_dir(),
   url = assets_bundle_url(version)
 ) {
-  stopifnot(length(list(...)) == 0)
+  rlang::check_dots_empty()
   if (!fs::dir_exists(dir)) {
     cli_alert_info("Creating assets cache directory ", dir)
     fs::dir_create(dir)
@@ -221,7 +228,6 @@ assets_ensure <- function(
 }
 
 
-
 # """Removes local copies of shinylive web assets, except for the one used by the
 # current version of the shinylive python package.
 
@@ -232,7 +238,6 @@ assets_ensure <- function(
 #     be used.
 # """
 
-
 #' @describeIn assets Removes local copies of shinylive web assets, except for
 #'    the one used by the current version of \pkg{shinylive}.
 #' @export
@@ -240,7 +245,7 @@ assets_cleanup <- function(
   ...,
   dir = assets_cache_dir()
 ) {
-  stopifnot(length(list(...)) == 0)
+  rlang::check_dots_empty()
   versions <- vapply(
     assets_dirs(dir = dir),
     function(ver_path) {
@@ -259,7 +264,6 @@ assets_cleanup <- function(
 
   invisible()
 }
-
 
 
 # """Removes local copy of shinylive.
@@ -283,8 +287,10 @@ assets_remove <- function(
   ...,
   dir = assets_cache_dir()
 ) {
-  stopifnot(length(list(...)) == 0)
-  stopifnot(length(versions) > 0 && is.character(versions))
+  rlang::check_dots_empty()
+  if (!is.character(versions) || length(versions) == 0) {
+    cli::cli_abort("{.arg versions} must be a non-empty character vector.")
+  }
 
   lapply(versions, function(version) {
     target_dir <- assets_dir_impl(dir = dir, version = version)
@@ -300,12 +306,11 @@ assets_remove <- function(
 }
 
 
-
 assets_dirs <- function(
   ...,
   dir = assets_cache_dir()
 ) {
-  stopifnot(length(list(...)) == 0)
+  rlang::check_dots_empty()
   if (!fs::dir_exists(dir)) {
     return(character(0))
   }
@@ -334,8 +339,6 @@ assets_dirs <- function(
 }
 
 
-
-
 #' @describeIn assets Prints information about the local shinylive assets that
 #'   have been installed. Invisibly returns a table of installed asset versions
 #'   and their associated paths.
@@ -360,7 +363,10 @@ assets_info <- function(quiet = FALSE) {
   if (assets_cache_dir_exists()) {
     cli_installed <- c()
     for (i in seq_along(installed_versions)) {
-      cli_installed <- c(cli_installed, c("*" = sprintf("{.path {installed_versions[%s]}}", i)))
+      cli_installed <- c(
+        cli_installed,
+        c("*" = sprintf("{.path {installed_versions[%s]}}", i))
+      )
     }
     cli_bullets(cli_installed)
   } else {
@@ -383,7 +389,6 @@ assets_info <- function(quiet = FALSE) {
 
   if (is_quiet()) data else invisible(data)
 }
-
 
 
 #' @describeIn assets Returns the version of the currently supported Shinylive

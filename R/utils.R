@@ -1,13 +1,38 @@
-assert_nzchar_string <- function(x) {
-  stopifnot(is.character(x) && nchar(x) > 0)
+assert_nzchar_string <- function(
+  x,
+  arg = rlang::caller_arg(x),
+  call = rlang::caller_env()
+) {
+  if (!is.character(x) || length(x) != 1 || !nzchar(x)) {
+    cli::cli_abort("{.arg {arg}} must be a non-empty string.", call = call)
+  }
   invisible(TRUE)
 }
-assert_list_items <- function(x, item_class) {
-  stopifnot(is.list(x) && all(vapply(x, inherits, logical(1), item_class)))
+assert_list_items <- function(
+  x,
+  item_class,
+  arg = rlang::caller_arg(x),
+  call = rlang::caller_env()
+) {
+  if (!is.list(x) || !all(vapply(x, inherits, logical(1), item_class))) {
+    cli::cli_abort(
+      "{.arg {arg}} must be a list of {.cls {item_class}} objects.",
+      call = call
+    )
+  }
   invisible(TRUE)
 }
-assert_list <- function(x) {
-  stopifnot(is.list(x))
+assert_list <- function(
+  x,
+  arg = rlang::caller_arg(x),
+  call = rlang::caller_env()
+) {
+  if (!is.list(x)) {
+    cli::cli_abort(
+      "{.arg {arg}} must be a list, not {.obj_type_friendly {x}}.",
+      call = call
+    )
+  }
   invisible(TRUE)
 }
 
@@ -30,7 +55,9 @@ collapse <- function(...) {
 package_json_version <- function(source_dir) {
   package_json_path <- fs::path(source_dir, "package.json")
   if (!fs::file_exists(package_json_path)) {
-    cli::cli_abort("{.field package.json} does not exist in {.path {source_dir}}")
+    cli::cli_abort(
+      "{.field package.json} does not exist in {.path {source_dir}}"
+    )
   }
 
   package_json <- jsonlite::read_json(package_json_path)
@@ -53,7 +80,6 @@ drop_nulls_rec <- function(x) {
     x
   }
 }
-
 
 
 # """Returns a function that can be used as a copy_function for shutil.copytree.

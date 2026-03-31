@@ -9,7 +9,7 @@
 #' @param quiet Suppress console output during export. Follows the global
 #'   `shinylive.quiet` option or defaults to `FALSE` in interactive sessions if
 #'   not set.
-#' @param verbose Deprecated, please use `quiet` instead.
+#' @param verbose `r lifecycle::badge('deprecated')` Use `quiet` instead.
 #' @param wasm_packages Download and include binary WebAssembly packages as part
 #'   of the output app's static assets. Logical, defaults to `TRUE`. The default
 #'   value can be changed by setting the environment variable
@@ -33,12 +33,12 @@
 #' @param template_params A list of parameters to pass to the template. The
 #'   supported parameters depends on the template being used. Custom templates
 #'   may support additional parameters (see `template_dir` for instructions on
-#'   creating a custom template or to find the current shinylive assets' 
+#'   creating a custom template or to find the current shinylive assets'
 #'   templates).
-#'   
+#'
 #'   With shinylive assets > 0.4.1, the default export template supports the
 #'   following parameters:
-#' 
+#'
 #'   1. `title`: The title of the app. Defaults to `"Shiny app"`.
 #'   2. `include_in_head`, `include_before_body`, `include_after_body`: Raw
 #'      HTML to be included in the `<head>`, just after the opening `<body>`,
@@ -70,10 +70,10 @@ export <- function(
   assets_version = NULL,
   template_dir = NULL,
   template_params = list(),
-  verbose = NULL
+  verbose = deprecated()
 ) {
-  if (!is.null(verbose)) {
-    rlang::warn("The {.var verbose} argument is deprecated. Use {.var quiet} instead.")
+  if (!missing(verbose)) {
+    lifecycle::deprecate_warn("0.2.0", "export(verbose)", "export(quiet)")
     if (missing(quiet)) {
       quiet <- !verbose
     }
@@ -90,13 +90,17 @@ export <- function(
   wasm_packages <- wasm_packages %||% sys_env_wasm_packages()
 
   if (!fs::is_dir(appdir)) {
-    cli::cli_abort("{.var appdir} must be a directory, but was provided {.path {appdir}}.")
+    cli::cli_abort(
+      "{.var appdir} must be a directory, but was provided {.path {appdir}}."
+    )
   }
-  if (!(
-    fs::file_exists(fs::path(appdir, "app.R")) ||
-      fs::file_exists(fs::path(appdir, "server.R"))
-  )) {
-    cli::cli_abort("Directory {.path {appdir}} does not contain an app.R or server.R file.")
+  if (
+    !(fs::file_exists(fs::path(appdir, "app.R")) ||
+      fs::file_exists(fs::path(appdir, "server.R")))
+  ) {
+    cli::cli_abort(
+      "Directory {.path {appdir}} does not contain an app.R or server.R file."
+    )
   }
 
   if (fs::is_absolute_path(subdir)) {
@@ -109,7 +113,6 @@ export <- function(
     fs::dir_create(destdir)
   }
 
-
   cp_funcs <- create_copy_fn(overwrite = FALSE)
   mark_file <- cp_funcs$mark_file
   copy_files <- cp_funcs$copy_files
@@ -120,7 +123,6 @@ export <- function(
   # Copy the base dependencies for shinylive/ distribution. This does not
   # include the R package files.
   # =========================================================================
-  cli_progress_step("Copying base Shinylive files")
 
   # When exporting, we know it is only an R app. So remove python support
   base_files <- c(
@@ -129,23 +131,23 @@ export <- function(
   )
 
   if (!is_quiet()) {
-    p <- progress::progress_bar$new(
-      format = "[:bar] :percent\n",
+    cli::cli_progress_bar(
+      "Copying base Shinylive files",
       total = length(base_files),
-      clear = FALSE,
-      show_after = 0
+      type = "tasks"
     )
   }
-  Map(
-    file.path(assets_path, base_files),
-    file.path(destdir, base_files),
-    f = function(src_path, dest_path) {
-      if (!is_quiet()) {
-        p$tick()
-      }
-      mark_file(src_path, dest_path)
+
+  for (base_file in base_files) {
+    src_path <- file.path(assets_path, base_file)
+    dest_path <- file.path(destdir, base_file)
+
+    if (!is_quiet()) {
+      cli::cli_progress_update()
     }
-  )
+    mark_file(src_path, dest_path)
+  }
+
   # lapply(base_files, function(base_file) {
   #   src_path <- fs::path(assets_path, base_file)
   #   dest_path <- fs::path(destdir, base_file)

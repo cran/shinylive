@@ -115,9 +115,11 @@ quarto_ext <- function(
   pretty = is_interactive(),
   con = "stdin"
 ) {
-  stopifnot(length(list(...)) == 0)
+  rlang::check_dots_empty()
   # This method should not print anything to stdout. Instead, it should return a JSON string that will be printed by the extension.
-  stopifnot(length(args) >= 1)
+  if (length(args) < 1) {
+    cli::cli_abort("{.arg args} must have at least one element.")
+  }
 
   followup_statement <- function() {
     c(
@@ -155,17 +157,20 @@ quarto_ext <- function(
   invalid_arg <- length(args) >= 2 && !(args[2] %in% names(methods))
 
   if (not_enough_args || invalid_arg) {
-    msg_stop <- 
+    msg_stop <-
       if (not_enough_args) {
         "Missing {.var extension} subcommand"
       } else if (invalid_arg) {
         "Unknown {.var extension} subcommand {.strong {args[2]}}"
       }
-    
+
     msg_methods <- c()
     for (method in names(methods)) {
       method_desc <- methods[[method]]
-      msg_methods <- c(msg_methods, paste(cli::style_bold(method), "-", method_desc))
+      msg_methods <- c(
+        msg_methods,
+        paste(cli::style_bold(method), "-", method_desc)
+      )
     }
 
     cli::cli_abort(c(
@@ -177,7 +182,6 @@ quarto_ext <- function(
       followup_statement()
     ))
   }
-  stopifnot(length(args) >= 2)
 
   ret <- switch(
     args[2],
@@ -194,11 +198,11 @@ quarto_ext <- function(
       sw_dir_pos <- which(args == "--sw-dir")
       if (length(sw_dir_pos) == 1) {
         if (sw_dir_pos == length(args)) {
-          stop("expected `--sw-dir` argument value")
+          cli::cli_abort("Expected {.arg --sw-dir} argument value.")
         }
         sw_dir <- args[sw_dir_pos + 1]
       } else {
-        stop("expected `--sw-dir` argument")
+        cli::cli_abort("Expected {.arg --sw-dir} argument.")
       }
       # Language agnostic files
       shinylive_base_deps_htmldep(sw_dir)
@@ -212,11 +216,15 @@ quarto_ext <- function(
       build_app_resources(app_json)
     },
     {
-      stop("Not implemented `extension` type: ", args[2])
+      cli::cli_abort("Not implemented {.arg extension} type: {.val {args[2]}}.")
     }
   )
   ret_null_free <- drop_nulls_rec(ret)
-  ret_json <- jsonlite::toJSON(ret_null_free, pretty = pretty, auto_unbox = TRUE)
+  ret_json <- jsonlite::toJSON(
+    ret_null_free,
+    pretty = pretty,
+    auto_unbox = TRUE
+  )
   # Make sure the json is printed to stdout.
   # Do not rely on Rscript to print the last value.
   print(ret_json)
@@ -244,7 +252,7 @@ build_app_resources <- function(app_json) {
   )
   lapply(app, function(file) {
     file_name <- fs::path_norm(file$name)
-    
+
     if (grepl("^(/|[.]{2})", file_name)) {
       cli::cli_abort(c(
         "App file paths must be relative to the app directory",
@@ -254,7 +262,7 @@ build_app_resources <- function(app_json) {
 
     file_path <- fs::path(appdir, file_name)
     fs::dir_create(fs::path_dir(file_path))
-    
+
     if (file$type == "text") {
       writeLines(file$content, file_path)
     } else {
@@ -270,7 +278,12 @@ build_app_resources <- function(app_json) {
     # Download wasm binaries ready to embed into Quarto deps
     withr::with_options(
       list(shinylive.quiet = TRUE),
-      download_wasm_packages(appdir, destdir, package_cache = TRUE, max_filesize = NULL)
+      download_wasm_packages(
+        appdir,
+        destdir,
+        package_cache = TRUE,
+        max_filesize = NULL
+      )
     )
   }
 

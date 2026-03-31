@@ -1,3 +1,10 @@
+test_that("export(verbose=) is deprecated", {
+  app_dir <- test_path("apps", "app-r")
+  lifecycle::expect_deprecated(
+    try(export(app_dir, tempfile(), verbose = TRUE), silent = TRUE)
+  )
+})
+
 expect_silent_unattended <- function(expr) {
   if (interactive()) {
     return(expr)
@@ -45,7 +52,10 @@ test_that("export - app.R", {
     dir(file.path(out_dir, "test_subdir")),
     asset_app_files
   )
-  expect_setequal(dir(file.path(out_dir, "test_subdir", "edit")), asset_edit_files)
+  expect_setequal(
+    dir(file.path(out_dir, "test_subdir", "edit")),
+    asset_edit_files
+  )
 })
 
 
@@ -64,7 +74,7 @@ test_that("export - server.R", {
   expect_silent_unattended({
     export(app_dir, out_dir)
   })
-  
+
   # Verify global.R / ui.R / server.R exported files exist
   app_json <- jsonlite::read_json(file.path(out_dir, "app.json"))
   out_app_file_names <- vapply(app_json, `[[`, character(1), "name")
@@ -82,7 +92,7 @@ test_that("export with template", {
   # withr::local_envvar(list("SHINYLIVE_ASSETS_VERSION" = "0.4.1"))
 
   assets_ensure()
-  
+
   path_export <- test_path("apps", "export_template")
 
   if (FALSE) {
@@ -119,7 +129,7 @@ test_that("export with template", {
     index_content,
     "<title>Shinylive Test App</title>"
   )
-  
+
   expect_match(
     index_content,
     "<body>\\s+<h1>Shinylive Test App</h1>"
@@ -177,17 +187,40 @@ test_that("export - include R package in wasm assets", {
   unlink_path(out_dir)
 
   # Set a maximum filesize
-  expect_error({
-    export(app_dir, out_dir, max_filesize = "1K")
-  })
+  expect_error(
+    export(app_dir, out_dir, max_filesize = "1K"),
+    class = "rlang_error"
+  )
   unlink_path(out_dir)
 
-  expect_error({
+  expect_error(
     withr::with_envvar(
       list("SHINYLIVE_DEFAULT_MAX_FILESIZE" = "1K"),
       export(app_dir, out_dir)
-    )
-  })
+    ),
+    class = "rlang_error"
+  )
   unlink_path(out_dir)
+})
 
+test_that("export - non utf8 paths", {
+  maybe_skip_test()
+
+  assets_ensure()
+
+  # Ensure pkgcache metadata has been loaded
+  invisible(pkgcache::meta_cache_list())
+
+  tmp_path <- tempfile()
+  on.exit(unlink_path(tmp_path), add = TRUE)
+  app_dir <- file.path(tmp_path, "• app")
+  out_dir <- file.path(tmp_path, "out")
+  fs::dir_create(app_dir)
+  fs::file_copy(
+    file.path(test_path("apps", "app-r"), "app.R"),
+    file.path(app_dir, "app.R")
+  )
+  expect_silent({
+    export(app_dir, out_dir)
+  })
 })

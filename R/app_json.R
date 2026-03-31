@@ -13,10 +13,8 @@ file_content_obj <- function(name, content, type = c("text", "binary")) {
 
 APP_INFO_CLASS <- "shinylive_app_info"
 app_info_obj <- function(appdir, subdir, files) {
-  stopifnot(inherits(files, "list"))
-  lapply(files, function(file) {
-    stopifnot(inherits(file, FILE_CONTENT_CLASS))
-  })
+  assert_list(files, arg = "files")
+  assert_list_items(files, FILE_CONTENT_CLASS, arg = "files")
   structure(
     list(
       appdir = appdir,
@@ -66,7 +64,11 @@ read_app_files <- function(
   }
 
   inspect_dir <- function(curdur) {
-    stopifnot(fs::is_dir(curdur))
+    if (!fs::is_dir(curdur)) {
+      cli::cli_abort(
+        "{.arg curdur} must be an existing directory: {.path {curdur}}"
+      )
+    }
 
     # Check for excluded dirs
     curdur_basename <- basename(curdur)
@@ -84,7 +86,9 @@ read_app_files <- function(
     # `dir()` is 10x faster than `fs::dir_ls()`
     cur_paths <- dir(curdur, full.names = TRUE)
     # Stable sort
-    cur_paths <- sort(cur_paths, method = "radix")
+    # radix sort only works with utf8, latin1 or bythe character vectors
+    # just for the ordering we use utf8
+    cur_paths <- cur_paths[order(enc2utf8(cur_paths), method = "radix")]
 
     cur_paths_basename <- basename(cur_paths)
     # Move `app.R`, `ui.R`, `server.R` to first in list
@@ -147,8 +151,6 @@ read_app_files <- function(
 }
 
 
-
-
 # """
 # Write index.html, edit/index.html, and app.json for an application in the destdir.
 # """
@@ -161,14 +163,23 @@ write_app_json <- function(
 ) {
   local_quiet(quiet)
 
-  stopifnot(inherits(app_info, APP_INFO_CLASS))
+  if (!inherits(app_info, APP_INFO_CLASS)) {
+    cli::cli_abort("{.arg app_info} must be a {.cls {APP_INFO_CLASS}} object.")
+  }
   # stopifnot(fs::dir_exists(destdir))
-  stopifnot(fs::dir_exists(template_dir))
+  if (!fs::dir_exists(template_dir)) {
+    cli::cli_abort(
+      "{.arg template_dir} must be an existing directory: {.path {template_dir}}"
+    )
+  }
 
   app_destdir <- fs::path(destdir, app_info$subdir)
 
   # For a subdir like a/b/c, this will be ../../../
-  subdir_inverse <- paste0(rep("..", length(fs::path_split(app_info$subdir)[[1]])), collapse = "/")
+  subdir_inverse <- paste0(
+    rep("..", length(fs::path_split(app_info$subdir)[[1]])),
+    collapse = "/"
+  )
   if (subdir_inverse != "") {
     # Add trailing slash
     subdir_inverse <- paste0(subdir_inverse, "/")
@@ -190,12 +201,15 @@ write_app_json <- function(
   )
 
   for (template_file in template_files) {
-    dest_file <- fs::path(app_destdir, fs::path_rel(template_file, template_dir))
+    dest_file <- fs::path(
+      app_destdir,
+      fs::path_rel(template_file, template_dir)
+    )
     fs::dir_create(fs::path_dir(dest_file))
 
     if (fs::path_ext(template_file) == "html") {
       file_content <- whisker::whisker.render(
-        template = brio::read_file(template_file), 
+        template = brio::read_file(template_file),
         data = template_params
       )
       brio::write_file(file_content, dest_file)
@@ -214,7 +228,9 @@ write_app_json <- function(
     pretty = FALSE
   )
   cli_progress_done()
-  cli_alert_info("Wrote {.path {app_json_output_file}} ({fs::file_info(app_json_output_file)$size[1]} bytes)")
-  
+  cli_alert_info(
+    "Wrote {.path {app_json_output_file}} ({fs::file_info(app_json_output_file)$size[1]} bytes)"
+  )
+
   invisible(app_json_output_file)
 }
