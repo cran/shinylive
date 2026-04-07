@@ -1,6 +1,6 @@
 Package: shinylive
 Title: Run 'shiny' Applications in the Browser
-Version: 0.4.0
+Version: 0.4.1
 Authors@R: c(
     person("Barret", "Schloerke", , "barret@posit.co", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-9986-114X")),
@@ -36,7 +36,7 @@ Encoding: UTF-8
 Language: en-US
 RoxygenNote: 7.3.3
 NeedsCompilation: no
-Packaged: 2026-03-31 19:04:07 UTC; barret
+Packaged: 2026-04-06 21:30:46 UTC; cpsievert
 Author: Barret Schloerke [aut, cre] (ORCID:
     <https://orcid.org/0000-0001-9986-114X>),
   Winston Chang [aut] (ORCID: <https://orcid.org/0000-0002-1576-2126>),
@@ -46,4 +46,4 @@ Author: Barret Schloerke [aut, cre] (ORCID:
   Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)
 Maintainer: Barret Schloerke <barret@posit.co>
 Repository: CRAN
-Date/Publication: 2026-03-31 19:20:02 UTC
+Date/Publication: 2026-04-07 05:20:02 UTC
