@@ -1,6 +1,6 @@
 Package: shinylive
 Title: Run 'shiny' Applications in the Browser
-Version: 0.4.1
+Version: 0.5.0
 Authors@R: c(
     person("Barret", "Schloerke", , "barret@posit.co", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-9986-114X")),
@@ -25,18 +25,19 @@ License: MIT + file LICENSE
 URL: https://posit-dev.github.io/r-shinylive/,
         https://github.com/posit-dev/r-shinylive
 BugReports: https://github.com/posit-dev/r-shinylive/issues
+Depends: R (>= 4.0)
 Imports: archive, brio, cli, fs, gh, glue, httr2 (>= 1.0.0), jsonlite,
         lifecycle, pkgdepends, rappdirs, renv, rlang (>= 1.1.0), tools,
         whisker, withr
 Suggests: httpuv (>= 1.6.12), pkgcache, spelling, testthat (>= 3.0.0)
 Config/Needs/website: tidyverse/tidytemplate
+Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Config/usethis/last-upkeep: 2026-03-30
 Encoding: UTF-8
 Language: en-US
-RoxygenNote: 7.3.3
 NeedsCompilation: no
-Packaged: 2026-04-06 21:30:46 UTC; cpsievert
+Packaged: 2026-06-08 16:38:36 UTC; barret
 Author: Barret Schloerke [aut, cre] (ORCID:
     <https://orcid.org/0000-0001-9986-114X>),
   Winston Chang [aut] (ORCID: <https://orcid.org/0000-0002-1576-2126>),
@@ -46,4 +47,4 @@ Author: Barret Schloerke [aut, cre] (ORCID:
   Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)
 Maintainer: Barret Schloerke <barret@posit.co>
 Repository: CRAN
-Date/Publication: 2026-04-07 05:20:02 UTC
+Date/Publication: 2026-06-08 17:10:02 UTC

@@ -1,17 +1,17 @@
-71e4bc351a32e3d2ecc889112f664f7b *DESCRIPTION
+b85e38a50edd3b9e8564c413993d76f1 *DESCRIPTION
 4c8e4ad07af3def4dc2450ec3610151e *LICENSE
 f6764b8dfa64f4ceadecf702e66d9e0f *NAMESPACE
-c5a5448ac5301d40da331f384ef3d8ac *NEWS.md
+ce33d96a992ecbee1737361b9247600e *NEWS.md
 6e36f26fe98c24d2af5308b081cdc85d *R/app_json.R
 beb56b463b001f901eb68459a8801cc6 *R/assets.R
 998d92fea34bc514c593acbd29185db6 *R/cli.R
 5f6c905a1df6d9ab08f2b811236ccf41 *R/deps.R
 617391397c59875bfec8de81d99ac585 *R/export.R
-53b2d8b4a61d699518304eb3196911a2 *R/packages.R
+8746fb997a9897248afadc0f1035118e *R/packages.R
 33603b41e6643ad88519a255ceda5f57 *R/quarto_ext.R
 25014f2519a3d9996f4017b79410e02f *R/shinylive-package.R
 d50e68da2b2ae90e470b7168bb4b79a7 *R/utils.R
-b220a8e4686615a74eb40d5f53faf5cd *R/version.R
+b5dfbd4a36a1a326b7fa5b9924fe0116 *R/version.R
 df052d832be8314b175c6e8aa111a618 *README.md
 35bf5122ef530b581651c7149629a8de *inst/WORDLIST
 ee20a1ba0646cad1377ef52623b94cb8 *man/assets.Rd
@@ -22,7 +22,7 @@ ed42e3fbd7cc30bc6ca8fa9b658e24a8 *man/figures/lifecycle-stable.svg
 bf2f1ad432ecccee3400afe533404113 *man/figures/lifecycle-superseded.svg
 a2ca2ec236a3a427199dcd0ca6076764 *man/install.Rd
 8906954c27a02f4a2e3d1b78b7c45ba9 *man/quarto_ext.Rd
-8463c082e629be7f678ee1a46ae6cb2e *man/shinylive-package.Rd
+3bc27b1fcb7ab05531d8a16b5fec483c *man/shinylive-package.Rd
 6286c40603df000aaae222467ae8cd76 *tests/spelling.R
 86e07f183e9b274fb18d94223ecf739f *tests/testthat.R
 6f84734595ffd538390a11b093ff0149 *tests/testthat/apps/app-r/app.R
@@ -36,4 +36,5 @@ b1b52b42fec6ae31613a6ce5cd140dbe *tests/testthat/apps/server-r/server.R
 b7e55d98c4cf05d95385bb2db8e534a5 *tests/testthat/test-assertions.R
 9ff340bf5731f4b359b4d2b32696f6d6 *tests/testthat/test-assets.R
 cd368249ca790236126e7115dfb0e52a *tests/testthat/test-export.R
+965cc41729db28ab97553a4afc679e60 *tests/testthat/test-packages.R
 a2378ed7e82540eeaf7a435ec35b72c7 *tests/testthat/test-quarto_ext.R
